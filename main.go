@@ -6,6 +6,11 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
+type Product struct {
+	Name       string      `json:"name"`
+	Attributes []Attribute `json:"attributes"`
+}
+
 type Attribute interface {
 	GetUniqueName() string
 }
@@ -22,11 +27,6 @@ type StringAttribute struct {
 type IntAttribute struct {
 	AbstractAttribute `mapstructure:",squash"`
 	Value             int `json:"value"`
-}
-
-type Product struct {
-	Name       string      `json:"name"`
-	Attributes []Attribute `json:"attributes"`
 }
 
 func (p *Product) UnmarshalJSON(data []byte) error {
@@ -47,11 +47,17 @@ func (p *Product) UnmarshalJSON(data []byte) error {
 		switch attributeName {
 			case "title":
 				var sa StringAttribute
-				mapstructure.Decode(abstractAttribute, &sa)
+				err := mapstructure.Decode(abstractAttribute, &sa)
+				if err != nil {
+					panic(err)
+				}
 				p.Attributes = append(p.Attributes, sa)
 			case "weight":
 				var sa IntAttribute
-				mapstructure.Decode(abstractAttribute, &sa)
+				err := mapstructure.Decode(abstractAttribute, &sa)
+				if err != nil {
+					panic(err)
+				}
 				p.Attributes = append(p.Attributes, sa)
 		}
 	}
@@ -77,21 +83,16 @@ func main() {
 	fmt.Println("Initial object:", product)
 
 	serializedProduct, err := json.Marshal(product)
-
 	if err != nil {
 		panic(err)
 	}
-
 	fmt.Println("Serialized object:", string(serializedProduct))
 
 	var deserializedProduct Product
-
 	err = json.Unmarshal(serializedProduct, &deserializedProduct)
-
 	if err != nil {
 		panic(err)
 	}
-
 	fmt.Println("Deserialized object", deserializedProduct)
 }
 
