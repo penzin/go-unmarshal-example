@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mitchellh/mapstructure"
 )
 
 type Attribute interface {
@@ -14,18 +15,48 @@ type AbstractAttribute struct {
 }
 
 type StringAttribute struct {
-	AbstractAttribute
-	Value string `json:"value"`
+	AbstractAttribute `mapstructure:",squash"`
+	Value             string `json:"value"`
 }
 
 type IntAttribute struct {
-	AbstractAttribute
-	Value int `json:"value"`
+	AbstractAttribute `mapstructure:",squash"`
+	Value             int `json:"value"`
 }
 
 type Product struct {
-	Name       string `json:"name"`
+	Name       string      `json:"name"`
 	Attributes []Attribute `json:"attributes"`
+}
+
+func (p *Product) UnmarshalJSON(data []byte) error {
+
+	var raw map[string]interface{}
+
+	err := json.Unmarshal(data, &raw)
+	if err != nil {
+		return err
+	}
+
+	p.Name = raw["name"].(string)
+	p.Attributes = []Attribute{}
+
+	for _, abstractAttribute := range raw["attributes"].([]interface{}) {
+		attributeName := abstractAttribute.(map[string]interface{})["name"]
+
+		switch attributeName {
+			case "title":
+				var sa StringAttribute
+				mapstructure.Decode(abstractAttribute, &sa)
+				p.Attributes = append(p.Attributes, sa)
+			case "weight":
+				var sa IntAttribute
+				mapstructure.Decode(abstractAttribute, &sa)
+				p.Attributes = append(p.Attributes, sa)
+		}
+	}
+
+	return nil
 }
 
 func main() {
@@ -33,17 +64,17 @@ func main() {
 		Name: "Bread",
 		Attributes: []Attribute{
 			StringAttribute{
-				AbstractAttribute: AbstractAttribute{Name: "title"},
-				Value:             "Baton",
+				AbstractAttribute: AbstractAttribute{Name:  "title"},
+				Value: "Baton",
 			},
 			IntAttribute{
 				AbstractAttribute: AbstractAttribute{Name: "weight"},
-				Value:             5,
+				Value: 5,
 			},
 		},
 	}
 
-	fmt.Println(product)
+	fmt.Println("Initial object:", product)
 
 	serializedProduct, err := json.Marshal(product)
 
@@ -51,7 +82,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(string(serializedProduct))
+	fmt.Println("Serialized object:", string(serializedProduct))
 
 	var deserializedProduct Product
 
@@ -61,7 +92,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(deserializedProduct)
+	fmt.Println("Deserialized object", deserializedProduct)
 }
 
 func (a StringAttribute) GetUniqueName() string {
