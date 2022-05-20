@@ -1,4 +1,4 @@
-module main
+module penzin/go-unmarshal-example
 
 go 1.16
 

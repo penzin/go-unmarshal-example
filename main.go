@@ -7,8 +7,8 @@ import (
 )
 
 type Product struct {
-	Name       string      `json:"name"`
-	Attributes []Attribute `json:"attributes"`
+	ProductName string      `json:"product-name" mapstructure:"product-name"`
+	Attributes  []Attribute `json:"attributes"`
 }
 
 type Attribute interface {
@@ -31,35 +31,30 @@ type IntAttribute struct {
 
 func (p *Product) UnmarshalJSON(data []byte) error {
 
-	var raw map[string]interface{}
+	var rawProductData, rawProductDataWithoutAttributes map[string]interface{}
 
-	err := json.Unmarshal(data, &raw)
+	err := json.Unmarshal(data, &rawProductData)
 	if err != nil {
 		return err
 	}
 
-	p.Name = raw["name"].(string)
+	rawProductDataWithoutAttributes = make(map[string]interface{})
+	for key, value := range rawProductData {
+		if key == "attributes" {
+			continue
+		}
+		rawProductDataWithoutAttributes[key] = value
+	}
+
+	err = mapstructure.Decode(rawProductDataWithoutAttributes, &p)
+	if err != nil {
+		return err
+	}
+
 	p.Attributes = []Attribute{}
 
-	for _, abstractAttribute := range raw["attributes"].([]interface{}) {
-		attributeName := abstractAttribute.(map[string]interface{})["name"]
-
-		switch attributeName {
-			case "title":
-				var sa StringAttribute
-				err := mapstructure.Decode(abstractAttribute, &sa)
-				if err != nil {
-					panic(err)
-				}
-				p.Attributes = append(p.Attributes, sa)
-			case "weight":
-				var sa IntAttribute
-				err := mapstructure.Decode(abstractAttribute, &sa)
-				if err != nil {
-					panic(err)
-				}
-				p.Attributes = append(p.Attributes, sa)
-		}
+	for _, abstractAttribute := range rawProductData["attributes"].([]interface{}) {
+		p.Attributes = append(p.Attributes, deserializeAttribute(abstractAttribute))
 	}
 
 	return nil
@@ -67,15 +62,15 @@ func (p *Product) UnmarshalJSON(data []byte) error {
 
 func main() {
 	product := Product{
-		Name: "Bread",
+		ProductName: "Bread",
 		Attributes: []Attribute{
 			StringAttribute{
-				AbstractAttribute: AbstractAttribute{Name:  "title"},
-				Value: "Baton",
+				AbstractAttribute: AbstractAttribute{Name: "title"},
+				Value:             "Baguette",
 			},
 			IntAttribute{
 				AbstractAttribute: AbstractAttribute{Name: "weight"},
-				Value: 5,
+				Value:             500,
 			},
 		},
 	}
@@ -102,4 +97,24 @@ func (a StringAttribute) GetUniqueName() string {
 
 func (a IntAttribute) GetUniqueName() string {
 	return "Int attribute name"
+}
+
+func deserializeAttribute(unknownAttribute interface{}) Attribute {
+	attributeName := unknownAttribute.(map[string]interface{})["name"]
+
+	if attributeName == "title" {
+		var sa StringAttribute
+		err := mapstructure.Decode(unknownAttribute, &sa)
+		if err != nil {
+			panic(err)
+		}
+		return sa
+	}
+
+	var sa IntAttribute
+	err := mapstructure.Decode(unknownAttribute, &sa)
+	if err != nil {
+		panic(err)
+	}
+	return sa
 }
